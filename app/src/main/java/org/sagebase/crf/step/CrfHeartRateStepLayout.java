@@ -53,6 +53,7 @@ import org.researchstack.backbone.ui.views.ArcDrawable;
 import org.researchstack.backbone.utils.StepResultHelper;
 import org.sagebase.crf.camera.CameraSourcePreview;
 import org.sagebase.crf.step.active.BpmRecorder;
+import org.sagebase.crf.step.active.HeartRateBPM;
 import org.sagebase.crf.step.active.HeartRateCamera2Recorder;
 import org.sagebase.crf.step.active.HeartRateCameraRecorder;
 import org.sagebase.crf.step.active.HeartRateCameraRecorderConfig;
@@ -106,7 +107,7 @@ public class CrfHeartRateStepLayout extends ActiveStepLayout implements
     private int previousBpm = -1;
 
     private boolean hasDetectedStart = false;
-    private List<BpmHolder> bpmList;
+    private List<HeartRateBPM> bpmList;
 
     protected  Recorder cameraRecorder;
     protected boolean shouldContinueOnStop = false;
@@ -311,12 +312,12 @@ public class CrfHeartRateStepLayout extends ActiveStepLayout implements
     }
 
     @UiThread
-    public void bpmUpdate(BpmHolder bpmHolder) {
+    public void bpmUpdate(HeartRateBPM bpmHolder) {
         if (heartBeatAnimation == null) {
-            heartBeatAnimation = new HeartBeatAnimation(bpmHolder.bpm);
+            heartBeatAnimation = new HeartBeatAnimation(bpmHolder.getBpm());
             heartImageView.startAnimation(heartBeatAnimation);
         }
-        heartBeatAnimation.setBpm(bpmHolder.bpm);
+        heartBeatAnimation.setBpm(bpmHolder.getBpm());
         bpmList.add(bpmHolder);
     }
 
@@ -347,8 +348,8 @@ public class CrfHeartRateStepLayout extends ActiveStepLayout implements
 
         if (!bpmList.isEmpty()) {
             int bpmSum = 0;
-            for (BpmHolder bpmHolder : bpmList) {
-                bpmSum += bpmHolder.bpm;
+            for (HeartRateBPM bpmHolder : bpmList) {
+                bpmSum += bpmHolder.getBpm();
             }
             int averageBpm = bpmSum / bpmList.size();
             setBpmDifferenceResult(averageBpm);
@@ -365,7 +366,7 @@ public class CrfHeartRateStepLayout extends ActiveStepLayout implements
      * @param bpmStart first BPM reading recorded
      * @param bpmEnd last BPM reading recorded
      */
-    private void setBpmStartAndEnd(BpmHolder bpmStart, BpmHolder bpmEnd) {
+    private void setBpmStartAndEnd(HeartRateBPM bpmStart, HeartRateBPM bpmEnd) {
         String startIdentifier = activeStep.getIdentifier() + BPM_START_IDENTIFIER_SUFFIX;
         stepResult.setResultForIdentifier(startIdentifier,
                 getBpmStepResult(startIdentifier, bpmStart));
@@ -375,13 +376,18 @@ public class CrfHeartRateStepLayout extends ActiveStepLayout implements
                 getBpmStepResult(endIdentifier, bpmEnd));
     }
 
-    private StepResult<Integer> getBpmStepResult(String identifier, BpmHolder bpmHolder) {
+    private StepResult<Integer> getBpmStepResult(String identifier, HeartRateBPM bpmHolder) {
         QuestionStep bpmQuestion =
                 new QuestionStep(identifier, identifier, new DecimalAnswerFormat(0,300));
         StepResult<Integer> bpmResult = new StepResult<>(bpmQuestion);
-        bpmResult.setResult(bpmHolder.bpm);
-        bpmResult.setStartDate(new Date(bpmHolder.timestamp));
-        bpmResult.setEndDate(new Date(bpmHolder.timestamp));
+        bpmResult.setResult(bpmHolder.getBpm());
+
+        double uptime = bpmHolder.getUptime();
+        double currentUptimeSeconds = System.nanoTime() * 1e-9;
+        long currentTimestamp = System.currentTimeMillis() - (long)((currentUptimeSeconds - uptime) * 1_000);
+        Date startDate = new Date(currentTimestamp);
+        bpmResult.setStartDate(startDate);
+        bpmResult.setEndDate(startDate);
 
         return bpmResult;
     }

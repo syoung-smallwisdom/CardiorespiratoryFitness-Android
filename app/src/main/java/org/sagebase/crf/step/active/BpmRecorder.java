@@ -43,18 +43,9 @@ import java.util.Locale;
 public interface BpmRecorder {
     
     interface BpmUpdateListener {
-        class BpmHolder {
-            public final int bpm;
-            public final long timestamp;
-            
-            public BpmHolder(int bpm, long timestamp) {
-                this.bpm = bpm;
-                this.timestamp = timestamp;
-            }
-        }
-        
+
         @UiThread
-        void bpmUpdate(BpmHolder bpm);
+        void bpmUpdate(HeartRateBPM bpm);
     }
     
     interface IntelligentStartUpdateListener {
@@ -64,6 +55,7 @@ public interface BpmRecorder {
          */
         void intelligentStartUpdate(float progress, boolean ready);
     }
+
     
     class HeartBeatJsonWriter extends JsonArrayDataRecorder
             implements HeartbeatSampleTracker
