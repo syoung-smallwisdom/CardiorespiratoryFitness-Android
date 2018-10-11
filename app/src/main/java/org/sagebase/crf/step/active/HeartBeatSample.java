@@ -18,34 +18,36 @@
 package org.sagebase.crf.step.active;
 
 import com.google.common.base.MoreObjects;
+import java.util.Date;
+
+import javax.annotation.Nullable;
 
 /**
  * Created by TheMDP on 10/17/17.
  */
 
 public class HeartBeatSample {
-    public double t;
-    public float r;
-    public float g;
-    public float b;
-    public float h;
-    public float s;
-    public float v;
+    public double timestamp;
+    public float red;
+    public float green;
+    public float blue;
     public double redLevel;
     public int bpm;
+    public double uptime;
+
+    @Nullable
+    public Date timestampDate;
 
     @Override
     public String toString() {
         return MoreObjects.toStringHelper(this)
-                .add("t", t)
-                .add("r", r)
-                .add("g", g)
-                .add("b", b)
-                .add("h", h)
-                .add("s", s)
-                .add("v", v)
+                .add("timestamp", timestamp)
+                .add("red", red)
+                .add("green", green)
+                .add("blue", blue)
                 .add("redLevel", redLevel)
                 .add("bpm", bpm)
+                .add("uptime", uptime)
                 .toString();
     }
 
@@ -59,10 +61,6 @@ public class HeartBeatSample {
 
     /// Is the user's finger covering the lens?
     public boolean isCoveringLens() {
-
-        float red = r;
-        float green = g;
-        float blue = b;
 
         // If the red level isn't high enough then exit with false.
         if ((redLevel >= MIN_RED_LEVEL) && (red > green) && (red > blue)) { }

@@ -83,7 +83,6 @@ import static android.hardware.camera2.CameraMetadata.INFO_SUPPORTED_HARDWARE_LE
 import static android.hardware.camera2.CameraMetadata.INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED;
 import static android.hardware.camera2.CameraMetadata.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR;
 import static android.hardware.camera2.CaptureResult.*;
-import static org.sagebase.crf.step.active.HeartBeatUtil.getHeartBeatSample;
 import static org.sagebase.crf.step.active.ImageUtils.toBitmap;
 
 /**
@@ -238,7 +237,9 @@ public class HeartRateCamera2Recorder extends Recorder {
         LOG.warn("Started video recording");
         doRepeatingRequest(cameraCaptureSession, surfacesNoPreview);
     }
-    
+
+    private HeartBeatUtil heartBeatUtil = new HeartBeatUtil();
+
     @WorkerThread
     public HeartBeatSample toHeartBeatSample(ImageReader imageReader) {
         Image image = imageReader.acquireNextImage();
@@ -247,7 +248,7 @@ public class HeartRateCamera2Recorder extends Recorder {
                         mVideoSize.getHeight());
 
         HeartBeatSample sample =
-                getHeartBeatSample(image.getTimestamp() / 1_000_000D, bitmap);
+                heartBeatUtil.getHeartBeatSample(image.getTimestamp() / 1_000_000D, bitmap);
         image.close();
         return sample;
     }

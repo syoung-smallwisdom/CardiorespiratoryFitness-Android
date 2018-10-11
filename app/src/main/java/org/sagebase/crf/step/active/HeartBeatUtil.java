@@ -19,15 +19,30 @@ package org.sagebase.crf.step.active;
 
 import android.graphics.Bitmap;
 
+import java.util.Date;
+
 /**
  * Created by liujoshua on 2/19/2018.
  */
 
 public class HeartBeatUtil {
 
-    public static HeartBeatSample getHeartBeatSample(double timestamp, Bitmap bitmap) {
+    private double timestampZeroReference = -1;
+    private double uptimeZeroReference = -1;
+
+    public HeartBeatSample getHeartBeatSample(double timestamp, Bitmap bitmap) {
         HeartBeatSample sample = new HeartBeatSample();
-        sample.t = timestamp;
+
+        if (timestampZeroReference < 0) {
+            // set timestamp reference, which timestamps are measured relative to
+            timestampZeroReference = timestamp;
+            uptimeZeroReference = System.nanoTime() * 1e-9;
+            sample.timestampDate = new Date(System.currentTimeMillis());
+        }
+
+        double relativeTimestamp = ((timestamp - timestampZeroReference) / 1_000);
+        sample.uptime = uptimeZeroReference + relativeTimestamp;
+        sample.timestamp = relativeTimestamp;
 
         long redCount = 0;
         long r = 0, g = 0, b = 0;
@@ -52,19 +67,17 @@ public class HeartBeatUtil {
 
         long rawSampleR = r / intArray.length;
         // Per the need to match iOS data (which gives RGB data as 0.0 - 1.0, normalize these values
-        sample.r = ((float)r / (float)intArray.length) / 255.0f;
-        sample.g = ((float)g / (float)intArray.length) / 255.0f;
-        sample.b = ((float)b / (float)intArray.length) / 255.0f;
+        sample.red = ((float)r / (float)intArray.length) / 255.0f;
+        sample.green = ((float)g / (float)intArray.length) / 255.0f;
+        sample.blue = ((float)b / (float)intArray.length) / 255.0f;
         sample.redLevel = (double)redCount / (double)(width * height);
-
-        fillHsv(sample);
 
         return sample;
     }
 
     private static final double RED_THRESHOLD = 40;
 
-    private static double getRedHueFromRed(double r, double g, double b) {
+    private double getRedHueFromRed(double r, double g, double b) {
         if ((r < g) || (r < b)) {
             return -1;
         }
@@ -78,38 +91,5 @@ public class HeartBeatUtil {
             hue += 360;
         }
         return hue;
-    }
-
-    private static void fillHsv(HeartBeatSample sample) {
-        float min = Math.min(sample.r, Math.min(sample.g, sample.b));
-        float max = Math.max(sample.r, Math.max(sample.g, sample.b));
-        float delta = max - min;
-
-        if (((int)Math.round(delta * 1000.0) == 0) || ((int)Math.round(delta * 1000.0) == 0)) {
-            sample.h = -1;
-            sample.s = 0;
-            sample.v = 0;
-            return;
-        }
-
-        float hue;
-        if (sample.r == max) {
-            hue = (sample.g - sample.b) / delta;
-        } else if (sample.g == max) {
-            hue = 2f + (sample.b - sample.r) / delta;
-        } else {
-            hue = 4f + (sample.r - sample.g) / delta;
-        }
-        hue *= 60f;
-        if (hue < 0) {
-            hue += 360f;
-        }
-
-        sample.h = hue;
-        sample.s = (delta / max);
-        sample.v = max;
-    }
-
-    private HeartBeatUtil() {
     }
 }

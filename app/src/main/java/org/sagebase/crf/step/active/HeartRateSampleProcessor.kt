@@ -1,5 +1,7 @@
 package org.sagebase.crf.step.active
 
+import android.support.annotation.WorkerThread
+
 //  Copyright © 2018 Sage Bionetworks. All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without modification,
@@ -35,7 +37,31 @@ val SUPPORTED_FRAME_RATES = arrayOf(60.0)
 /// The number of seconds for the window used to calculate the heart rate.
 const val HEART_RATE_WINDOW_IN_SECONDS: Double = 10.0
 
+data class HeartRateBPM(val uptime: Double, val bpm: Int, val confidence: Double)
+
 internal class HeartRateSampleProcessor {
+
+    private var pixelSamples = mutableListOf<HeartBeatSample>()
+
+    public var videoProcessorFrameRate = 60
+
+    @WorkerThread
+    internal fun processSample(sample: HeartBeatSample): HeartRateBPM? {
+        if (!sample.isCoveringLens()) return null
+        this.pixelSamples.add(sample)
+
+        // look to see if we have enough to process a bpm
+        val windowLen = HEART_RATE_WINDOW_IN_SECONDS.toInt() * this.videoProcessorFrameRate
+        if (pixelSamples.size < windowLen) return null
+
+        // get the red channel and the uptime then remove the first half the samples
+        val halfLength = windowLen / 2
+        val uptime = this.pixelSamples[halfLength].uptime
+        val channel = this.pixelSamples.map { sample -> sample.red.toDouble() }
+        this.pixelSamples = this.pixelSamples.subList(halfLength, this.pixelSamples.size)
+        val ret = calculateHeartRate(channel)
+        return HeartRateBPM(uptime, ret.heartRate.toInt(), ret.confidence )
+    }
 
     // --- Code ported from Matlab
     private val fs: Double = SUPPORTED_FRAME_RATES.first()              // frames / second
@@ -53,12 +79,11 @@ internal class HeartRateSampleProcessor {
         for (frame_no in 1..nframes) {
             val lower = (1 + ((frame_no - 1) * windowLength / 2)) - 1
             val upper = ((frame_no + 1) * windowLength / 2) - 1
-            val currframe = channel.subList(lower, upper + 1).toTypedArray()
+            val currframe = channel.subList(lower, upper + 1)
             output.add(calculateHeartRate(currframe))
         }
         return output
     }
-
 
     internal data class CalculatedHeartRate(val heartRate: Long, val confidence: Double)
 
@@ -66,9 +91,9 @@ internal class HeartRateSampleProcessor {
      * For a given window return the calculated heart rate and confidence.
      * @note The calculated heart rate is rounded.
      */
-    internal fun calculateHeartRate(input: Array<Double>): CalculatedHeartRate {
+    internal fun calculateHeartRate(input: List<Double>): CalculatedHeartRate {
         //% Preprocess and find the autocorrelation function
-        val filteredValues = bandpassFiltered(input)
+        val filteredValues = bandpassFiltered(input.toTypedArray())
         val xCorrValues = xcorr(filteredValues)
         //% To just remove the repeated part of the autocorr function (since it is even)
         val maxRet = maxSplice(xCorrValues)
