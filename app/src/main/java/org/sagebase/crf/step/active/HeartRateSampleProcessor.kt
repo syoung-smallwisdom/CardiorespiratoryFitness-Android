@@ -1,6 +1,7 @@
 package org.sagebase.crf.step.active
 
 import android.support.annotation.WorkerThread
+import org.sagebase.crf.matlab.*
 
 //  Copyright © 2018 Sage Bionetworks. All rights reserved.
 //
@@ -92,9 +93,9 @@ internal class HeartRateSampleProcessor @JvmOverloads constructor(val videoProce
     private fun calculateHeartRate(input: List<Double>): CalculatedHeartRate {
         //% Preprocess and find the autocorrelation function
         val filteredValues = bandpassFiltered(input.toTypedArray())
-        val xCorrValues = xcorr(filteredValues)
+        val xCorrValues = Matlab.xcorr(filteredValues)
         //% To just remove the repeated part of the autocorr function (since it is even)
-        val maxRet = maxSplice(xCorrValues)
+        val maxRet = xCorrValues.maxSplice()
         val x = maxRet.v2.toTypedArray()
 
         //% HR ranges from 40-200 BPM, so consider only that part of the autocorr
@@ -106,15 +107,6 @@ internal class HeartRateSampleProcessor @JvmOverloads constructor(val videoProce
         val pos = retVal.index
         val heartRate = Math.round(60.0 * fs / (pos.toDouble() + 1.0))
         return CalculatedHeartRate(heartRate, value / maxRet.maxValue)
-    }
-
-    // Used privately in place of a tuple. Does not need to implement hash and equality.
-    internal data class MaxAndSplice(val maxValue: Double, val v2: List<Double>)
-
-    internal fun maxSplice(input: Array<Double>): MaxAndSplice {
-        //% To just remove the repeated part of the autocorr function (since it is even)
-        val ret = input.seekMax()
-        return MaxAndSplice(ret.value, input.endSplice(ret.index).toList())
     }
 
     internal fun bandpassFiltered(input: Array<Double>): Array<Double> {
@@ -134,7 +126,7 @@ internal class HeartRateSampleProcessor @JvmOverloads constructor(val videoProce
      * everything else in that window.
      */
     private fun meanfilter(input: Array<Double>, n: Int, b1: Array<Double>): Array<Double> {
-        val x = conv(input, b1, ConvolutionType.SAME).centerSplice(65)
+        val x = Matlab.conv(input, b1, Matlab.ConvolutionType.SAME).centerSplice(65)
         val output = x.copyOf()
         for (nn in ((n + 1) / 2)..(x.size - (n - 1) / 2)) {
             val lower = (nn - (n - 1) / 2) - 1
@@ -144,110 +136,5 @@ internal class HeartRateSampleProcessor @JvmOverloads constructor(val videoProce
         }
         return output
     }
-
-    /**
-     * autocorrelation
-     */
-    internal fun xcorr(x: Array<Double>): Array<Double> {
-        val xflip = x.reversedArray()
-        return conv(x, xflip)
-    }
-
-    /**
-     * convolution
-     * https://www.mathworks.com/help/matlab/ref/conv.html#bucr92l-2
-     */
-    enum class ConvolutionType {
-        FULL,
-        SAME
-    }
-
-    internal fun conv(u: Array<Double>, v: Array<Double>, convolutionType: ConvolutionType = ConvolutionType.FULL) : Array<Double> {
-        return when (convolutionType) {
-            ConvolutionType.SAME ->
-                outputConv(u, v, outputLength = u.size)
-            ConvolutionType.FULL ->
-                outputConv(u, v, outputLength = -1)
-        }
-    }
-
-    private fun outputConv(u: Array<Double>, v: Array<Double>, outputLength: Int): Array<Double> {
-        val m = u.size
-        val n = v.size
-        val range = Array(m + n - 1) { ii -> ii + 1 }
-        val output: List<Double> = range.map { k ->
-            var sum = 0.0
-            for (j in Math.max(1, k + 1 - n)..Math.min(k, m)) {
-                sum += u[j - 1] * v[k - j]
-            }
-            return@map sum
-        }
-
-        return when (outputLength > 0) {
-            true -> {
-                val center = Math.floor(output.size.toDouble() / 2.0).toInt()
-                val halfU = Math.floor(outputLength.toDouble() / 2.0).toInt()
-                val start = center - halfU
-                val end = start + outputLength
-                output.subList(start, end).toTypedArray()
-            }
-            false ->
-                output.toTypedArray()
-        }
-    }
-
 }
 
-internal data class ValueAndIndex(val value: Double, val index: Int)
-
-/**
- * Returns the max value and index of that value.
- */
-internal fun Array<Double>.seekMax(): ValueAndIndex {
-    val value = this.max()!!
-    val index = this.indexOf(value)
-    return ValueAndIndex(value, index)
-}
-
-/**
- * Replace the elements of the array with the given number of zeros on the left and clipped on the
- * right.
- */
-internal fun Array<Double>.zeroReplace(lowerBounds: Int, upperBounds: Int): Array<Double> {
-    val dropCount = this.size - upperBounds - 1
-    val y = if (dropCount > 0) this.dropLast(dropCount).toTypedArray() else this.copyOf()
-    if (lowerBounds >= 0) {
-        y.fill(0.0, 0, lowerBounds)
-    }
-    return y
-}
-
-/**
- * Pad the array with zeros before the value.
- */
-internal fun Array<Double>.zeroPadBefore(count: Int): Array<Double> {
-    val output = MutableList(count) { 0.0 }
-    output.addAll(this)
-    return output.toTypedArray()
-}
-
-/**
- * Pad the array with zeros before the value.
- */
-internal fun Array<Double>.zeroPadAfter(count: Int): Array<Double> {
-    val output = this.toMutableList()
-    output.addAll(Array(count) { 0.0 })
-    return output.toTypedArray()
-}
-
-/**
- * Return the center of the range minus the ends to endCount.
- */
-internal fun Array<Double>.centerSplice(endCount: Int): Array<Double> =
-        this.slice((endCount - 1) until (this.size - endCount)).toTypedArray()
-
-/**
- * Return the center of the range minus the ends to endCount.
- */
-internal fun Array<Double>.endSplice(fromIndex: Int): Array<Double> =
-        this.slice(fromIndex until this.size).toTypedArray()

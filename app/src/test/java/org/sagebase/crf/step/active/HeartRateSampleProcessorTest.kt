@@ -3,22 +3,22 @@ package org.sagebase.crf.step.active
 import org.junit.Test
 
 import org.junit.Assert.*
+import org.sagebase.crf.matlab.*
 
 class HeartRateSampleProcessorTest {
 
 
     @Test
     fun testConv() {
-        val sampleProcessor = HeartRateSampleProcessor()
 
         val u = Array(10) { ii -> ii.toDouble() + 1.0 }
         val v = Array(15) { ii -> ii.toDouble() + 1.0 }
 
-        val output1 = sampleProcessor.conv(u, v, HeartRateSampleProcessor.ConvolutionType.SAME)
+        val output1 = Matlab.conv(u, v, Matlab.ConvolutionType.SAME)
         val expectedAnswer1 = arrayOf(120.0, 165.0, 220.0, 275.0, 330.0, 385.0, 440.0, 495.0, 534.0, 556.0)
         assertArrayEquals(expectedAnswer1, output1)
 
-        val output2 = sampleProcessor.conv(v, u, HeartRateSampleProcessor.ConvolutionType.SAME)
+        val output2 = Matlab.conv(v, u, Matlab.ConvolutionType.SAME)
         val expectedAnswer2 = arrayOf(56.0, 84.0, 120.0, 165.0, 220.0, 275.0, 330.0, 385.0, 440.0, 495.0, 534.0, 556.0, 560.0, 545.0, 510.0)
         assertArrayEquals(expectedAnswer2, output2)
 
@@ -26,8 +26,8 @@ class HeartRateSampleProcessorTest {
         val input2 = u.zeroPadAfter(9)
 
         val expectedAnswer3 = arrayOf(1.0, 4.0, 10.0, 20.0, 35.0, 56.0, 84.0, 120.0, 165.0, 220.0, 264.0, 296.0, 315.0, 320.0, 310.0, 284.0, 241.0, 180.0, 100.0)
-        val convNoPad = sampleProcessor.conv(u, u)
-        val convPad = sampleProcessor.conv(input1, input2, HeartRateSampleProcessor.ConvolutionType.SAME)
+        val convNoPad = Matlab.conv(u, u)
+        val convPad = Matlab.conv(input1, input2, Matlab.ConvolutionType.SAME)
         assertArrayEquals(expectedAnswer3, convNoPad)
         assertArrayEquals(expectedAnswer3, convPad)
     }
@@ -36,8 +36,7 @@ class HeartRateSampleProcessorTest {
     fun testXCorr() {
         val input = Array(10) { ii -> ii.toDouble() + 1.0 }
 
-        val sampleProcessor = HeartRateSampleProcessor()
-        val output = sampleProcessor.xcorr(input)
+        val output = Matlab.xcorr(input)
         val expectedAnswer = arrayOf(10.0, 29.0, 56.0, 90.0, 130.0, 175.0, 224.0, 276.0, 330.0, 385.0, 330.0, 276.0, 224.0, 175.0, 130.0, 90.0, 56.0, 29.0, 10.0)
         assertArrayEquals(expectedAnswer, output)
     }
@@ -81,7 +80,7 @@ class HeartRateSampleProcessorTest {
         val expectedOutput = getXcorrValues()
         val sampleProcessor = HeartRateSampleProcessor()
         val filtered = sampleProcessor.bandpassFiltered(red.toTypedArray())
-        val output = sampleProcessor.xcorr(filtered)
+        val output = Matlab.xcorr(filtered)
 
         if (output.size == expectedOutput.size) {
             output.forEachIndexed { index, element ->
@@ -98,8 +97,8 @@ class HeartRateSampleProcessorTest {
         val expectedOutput = getMaxSpliced()
         val sampleProcessor = HeartRateSampleProcessor()
         val filtered = sampleProcessor.bandpassFiltered(red.toTypedArray())
-        val xcorr = sampleProcessor.xcorr(filtered)
-        val ret = sampleProcessor.maxSplice(xcorr)
+        val xcorr = Matlab.xcorr(filtered)
+        val ret = xcorr.maxSplice()
         val output = ret.v2
 
         assertEquals(2.6419e-04, ret.maxValue, 0.0001e-04)
@@ -119,8 +118,8 @@ class HeartRateSampleProcessorTest {
         val expectedOutput = getZeroReplaceSeek()
         val sampleProcessor = HeartRateSampleProcessor()
         val filtered = sampleProcessor.bandpassFiltered(red.toTypedArray())
-        val xcorr = sampleProcessor.xcorr(filtered)
-        val x = sampleProcessor.maxSplice(xcorr).v2.toTypedArray()
+        val xcorr = Matlab.xcorr(filtered)
+        val x = xcorr.maxSplice().v2.toTypedArray()
 
         val lower = Math.round((60.0 * 60.0) / 200.0).toInt()
         val upper = Math.round((60.0 * 60.0) / 40.0).toInt()
