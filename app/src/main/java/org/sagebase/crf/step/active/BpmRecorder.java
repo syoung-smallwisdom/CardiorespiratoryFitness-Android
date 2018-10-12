@@ -104,8 +104,8 @@ public interface BpmRecorder {
         @Override
         public void onHeartRateSampleDetected(HeartBeatSample sample) {
 
-            if (sample.timestampDate != null) {
-                Date timestampReferenceDate = sample.timestampDate;
+            Date timestampReferenceDate = sample.getTimestampDate();
+            if (timestampReferenceDate != null) {
                 mJsonObject.addProperty(TIMESTAMP_DATE_KEY,
                         new SimpleDateFormat(FormatHelper.DATE_FORMAT_ISO_8601, new Locale("en", "us", "POSIX"))
                                 .format(timestampReferenceDate));
@@ -114,12 +114,12 @@ public interface BpmRecorder {
                 mJsonObject.remove(TIMESTAMP_DATE_KEY);
             }
 
-            mJsonObject.addProperty(TIMESTAMP_IN_SECONDS_KEY, sample.timestamp);
-            mJsonObject.addProperty(UPTIME_IN_SECONDS_KEY, sample.uptime);
-            mJsonObject.addProperty(RED_KEY, sample.red);
-            mJsonObject.addProperty(GREEN_KEY, sample.green);
-            mJsonObject.addProperty(BLUE_KEY, sample.blue);
-            mJsonObject.addProperty(RED_LEVEL_KEY, sample.redLevel);
+            mJsonObject.addProperty(TIMESTAMP_IN_SECONDS_KEY, sample.getTimestamp());
+            mJsonObject.addProperty(UPTIME_IN_SECONDS_KEY, sample.getUptime());
+            mJsonObject.addProperty(RED_KEY, sample.getRed());
+            mJsonObject.addProperty(GREEN_KEY, sample.getGreen());
+            mJsonObject.addProperty(BLUE_KEY, sample.getBlue());
+            mJsonObject.addProperty(RED_LEVEL_KEY, sample.getRedLevel());
 
             // TODO: syoung 10/11/2018 Calculate the heart rate on another thread so that the writing
             // thread is not blocked.

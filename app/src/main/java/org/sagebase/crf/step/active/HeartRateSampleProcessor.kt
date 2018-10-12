@@ -32,22 +32,20 @@ import android.support.annotation.WorkerThread
 //
 
 /// Frame rates supported by this processor, with the preferred framerate listed first.
-val SUPPORTED_FRAME_RATES = arrayOf(60.0)
+val SUPPORTED_FRAME_RATES = arrayOf(60)
 
 /// The number of seconds for the window used to calculate the heart rate.
 const val HEART_RATE_WINDOW_IN_SECONDS: Double = 10.0
 
 data class HeartRateBPM(val uptime: Double, val bpm: Int, val confidence: Double)
 
-internal class HeartRateSampleProcessor {
+internal class HeartRateSampleProcessor @JvmOverloads constructor(val videoProcessorFrameRate: Int = SUPPORTED_FRAME_RATES.first()) {
 
     private var pixelSamples = mutableListOf<HeartBeatSample>()
 
-    public var videoProcessorFrameRate = 60
-
     @WorkerThread
     internal fun processSample(sample: HeartBeatSample): HeartRateBPM? {
-        if (!sample.isCoveringLens()) return null
+        if (!sample.isCoveringLens) return null
         this.pixelSamples.add(sample)
 
         // look to see if we have enough to process a bpm
@@ -57,16 +55,16 @@ internal class HeartRateSampleProcessor {
         // get the red channel and the uptime then remove the first half the samples
         val halfLength = windowLen / 2
         val uptime = this.pixelSamples[halfLength].uptime
-        val channel = this.pixelSamples.map { sample -> sample.red.toDouble() }
+        val channel = this.pixelSamples.map { s -> s.red.toDouble() }
         this.pixelSamples = this.pixelSamples.subList(halfLength, this.pixelSamples.size)
         val ret = calculateHeartRate(channel)
         return HeartRateBPM(uptime, ret.heartRate.toInt(), ret.confidence )
     }
 
     // --- Code ported from Matlab
-    private val fs: Double = SUPPORTED_FRAME_RATES.first()              // frames / second
-    private val window: Double = HEART_RATE_WINDOW_IN_SECONDS           // seconds
-    private val windowLength: Int = Math.round(fs * window).toInt()
+    private val fs = videoProcessorFrameRate.toDouble()         // frames / second
+    private val window = HEART_RATE_WINDOW_IN_SECONDS           // seconds
+    private val windowLength = Math.round(fs * window).toInt()
 
     // number of frames in the window
     /// channel, 60fps, 10sec window
@@ -91,13 +89,13 @@ internal class HeartRateSampleProcessor {
      * For a given window return the calculated heart rate and confidence.
      * @note The calculated heart rate is rounded.
      */
-    internal fun calculateHeartRate(input: List<Double>): CalculatedHeartRate {
+    private fun calculateHeartRate(input: List<Double>): CalculatedHeartRate {
         //% Preprocess and find the autocorrelation function
         val filteredValues = bandpassFiltered(input.toTypedArray())
         val xCorrValues = xcorr(filteredValues)
         //% To just remove the repeated part of the autocorr function (since it is even)
         val maxRet = maxSplice(xCorrValues)
-        val x = maxRet.v2
+        val x = maxRet.v2.toTypedArray()
 
         //% HR ranges from 40-200 BPM, so consider only that part of the autocorr
         //% function
@@ -111,12 +109,12 @@ internal class HeartRateSampleProcessor {
     }
 
     // Used privately in place of a tuple. Does not need to implement hash and equality.
-    internal data class MaxAndSplice(val maxValue: Double, val v2: Array<Double>)
+    internal data class MaxAndSplice(val maxValue: Double, val v2: List<Double>)
 
     internal fun maxSplice(input: Array<Double>): MaxAndSplice {
         //% To just remove the repeated part of the autocorr function (since it is even)
         val ret = input.seekMax()
-        return MaxAndSplice(ret.value, input.copyOfRange(ret.index, input.size))
+        return MaxAndSplice(ret.value, input.endSplice(ret.index).toList())
     }
 
     internal fun bandpassFiltered(input: Array<Double>): Array<Double> {
@@ -167,7 +165,7 @@ internal class HeartRateSampleProcessor {
     internal fun conv(u: Array<Double>, v: Array<Double>, convolutionType: ConvolutionType = ConvolutionType.FULL) : Array<Double> {
         return when (convolutionType) {
             ConvolutionType.SAME ->
-                outputConv(u, v, outputLength = u.count())
+                outputConv(u, v, outputLength = u.size)
             ConvolutionType.FULL ->
                 outputConv(u, v, outputLength = -1)
         }
@@ -216,7 +214,7 @@ internal fun Array<Double>.seekMax(): ValueAndIndex {
  * right.
  */
 internal fun Array<Double>.zeroReplace(lowerBounds: Int, upperBounds: Int): Array<Double> {
-    val dropCount = this.count() - upperBounds - 1
+    val dropCount = this.size - upperBounds - 1
     val y = if (dropCount > 0) this.dropLast(dropCount).toTypedArray() else this.copyOf()
     if (lowerBounds >= 0) {
         y.fill(0.0, 0, lowerBounds)
@@ -246,4 +244,10 @@ internal fun Array<Double>.zeroPadAfter(count: Int): Array<Double> {
  * Return the center of the range minus the ends to endCount.
  */
 internal fun Array<Double>.centerSplice(endCount: Int): Array<Double> =
-        this.slice((endCount - 1) until (this.count() - endCount)).toTypedArray()
+        this.slice((endCount - 1) until (this.size - endCount)).toTypedArray()
+
+/**
+ * Return the center of the range minus the ends to endCount.
+ */
+internal fun Array<Double>.endSplice(fromIndex: Int): Array<Double> =
+        this.slice(fromIndex until this.size).toTypedArray()

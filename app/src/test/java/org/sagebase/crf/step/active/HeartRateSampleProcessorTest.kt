@@ -120,7 +120,7 @@ class HeartRateSampleProcessorTest {
         val sampleProcessor = HeartRateSampleProcessor()
         val filtered = sampleProcessor.bandpassFiltered(red.toTypedArray())
         val xcorr = sampleProcessor.xcorr(filtered)
-        val x = sampleProcessor.maxSplice(xcorr).v2
+        val x = sampleProcessor.maxSplice(xcorr).v2.toTypedArray()
 
         val lower = Math.round((60.0 * 60.0) / 200.0).toInt()
         val upper = Math.round((60.0 * 60.0) / 40.0).toInt()
