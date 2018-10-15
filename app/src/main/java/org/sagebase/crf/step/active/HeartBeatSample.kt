@@ -2,7 +2,7 @@ package org.sagebase.crf.step.active
 
 import java.util.*
 
-internal data class HeartBeatSample @JvmOverloads constructor(
+data class HeartBeatSample @JvmOverloads constructor(
         val uptime: Double,
         val timestamp: Double,
         val red: Float,

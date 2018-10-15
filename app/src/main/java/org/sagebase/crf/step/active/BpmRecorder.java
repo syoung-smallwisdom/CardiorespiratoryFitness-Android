@@ -55,7 +55,6 @@ public interface BpmRecorder {
          */
         void intelligentStartUpdate(float progress, boolean ready);
     }
-
     
     class HeartBeatJsonWriter extends JsonArrayDataRecorder
             implements HeartbeatSampleTracker
@@ -87,7 +86,8 @@ public interface BpmRecorder {
         
         private final BpmRecorder.BpmUpdateListener mBpmUpdateListener;
         private final BpmRecorder.IntelligentStartUpdateListener mIntelligentStartListener;
-        
+        private final HeartRateSampleProcessor sampleProcessor;
+
         private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
         public HeartBeatJsonWriter(BpmUpdateListener
@@ -98,6 +98,7 @@ public interface BpmRecorder {
             
             this.mBpmUpdateListener = mBpmUpdateListener;
             this.mIntelligentStartListener = mIntelligentStartListener;
+            this.sampleProcessor = new HeartRateSampleProcessor();
         }
         
         @AnyThread
@@ -121,27 +122,26 @@ public interface BpmRecorder {
             mJsonObject.addProperty(BLUE_KEY, sample.getBlue());
             mJsonObject.addProperty(RED_LEVEL_KEY, sample.getRedLevel());
 
-            // TODO: syoung 10/11/2018 Calculate the heart rate on another thread so that the writing
-            // thread is not blocked.
-            //bpmCalculator.calculateBpm(sample);
-//            if (sample.bpm > 0) {
-//                mJsonObject.addProperty(HEART_RATE_KEY, sample.bpm);
-//                if (mBpmUpdateListener != null) {
-//                    mainHandler.post(() ->
-//                            mBpmUpdateListener.bpmUpdate(
-//                                    new BpmRecorder.BpmUpdateListener.BpmHolder(sample.bpm, (long)sample.t)));
-//                }
-//            } else {
-//                mJsonObject.remove(HEART_RATE_KEY);
-//            }
-            
+            // TODO: syoung 10/11/2018 Calculate the heart rate on another thread so that sample processing does not block this thread.
+            // TODO: syoung 10/12/2018 Create and upload a result that includes the calculated values and the revision of the algorithm.
+            this.sampleProcessor.addSample(sample);
+            if (sampleProcessor.isReadyToProcess() && (mBpmUpdateListener != null)) {
+                HeartRateBPM bpm = sampleProcessor.processSamples();
+                    mainHandler.post(() ->
+                            mBpmUpdateListener.bpmUpdate(bpm));
+            }
+
             if (LOG.isTraceEnabled()) {
                 LOG.trace("HeartBeatSample: {}", sample);
             }
-            
-            if (!mEnableIntelligentStart || mIntelligentStartPassed) {
-                writeJsonObjectToFile(mJsonObject);
-            } else {
+
+            // Always write the json to file. This is *not* the video feed so it should write the
+            // JSON whether or not the lens covered is detected. Otherwise, would not get the
+            // timestampDate.
+            writeJsonObjectToFile(mJsonObject);
+
+            // If using detection of lens covered to trigger start, then check that.
+            if (mEnableIntelligentStart) {
                 updateIntelligentStart(sample);
             }
         }

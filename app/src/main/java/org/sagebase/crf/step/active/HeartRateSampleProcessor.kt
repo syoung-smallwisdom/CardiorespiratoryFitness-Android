@@ -40,26 +40,35 @@ const val HEART_RATE_WINDOW_IN_SECONDS: Double = 10.0
 
 data class HeartRateBPM(val uptime: Double, val bpm: Int, val confidence: Double)
 
-internal class HeartRateSampleProcessor @JvmOverloads constructor(val videoProcessorFrameRate: Int = SUPPORTED_FRAME_RATES.first()) {
+public class HeartRateSampleProcessor @JvmOverloads constructor(val videoProcessorFrameRate: Int = SUPPORTED_FRAME_RATES.first()) {
 
+    public var bpmRecords = mutableListOf<HeartRateBPM>()
     private var pixelSamples = mutableListOf<HeartBeatSample>()
 
-    @WorkerThread
-    internal fun processSample(sample: HeartBeatSample): HeartRateBPM? {
-        if (!sample.isCoveringLens) return null
+    public fun addSample(sample: HeartBeatSample) {
+        if (!sample.isCoveringLens) return
+
+        // Add the pixel sample
         this.pixelSamples.add(sample)
+    }
 
+    public fun isReadyToProcess(): Boolean {
         // look to see if we have enough to process a bpm
-        val windowLen = HEART_RATE_WINDOW_IN_SECONDS.toInt() * this.videoProcessorFrameRate
-        if (pixelSamples.size < windowLen) return null
+        return (pixelSamples.size < calculateWindowLength())
+    }
 
-        // get the red channel and the uptime then remove the first half the samples
+    private fun calculateWindowLength(): Int = HEART_RATE_WINDOW_IN_SECONDS.toInt() * this.videoProcessorFrameRate
+
+    public fun processSamples(): HeartRateBPM {
+        val windowLen = calculateWindowLength()
         val halfLength = windowLen / 2
         val uptime = this.pixelSamples[halfLength].uptime
         val channel = this.pixelSamples.map { s -> s.red.toDouble() }
         this.pixelSamples = this.pixelSamples.subList(halfLength, this.pixelSamples.size)
         val ret = calculateHeartRate(channel)
-        return HeartRateBPM(uptime, ret.heartRate.toInt(), ret.confidence )
+        val bpm = HeartRateBPM(uptime, ret.heartRate.toInt(), ret.confidence )
+        bpmRecords.add(bpm)
+        return bpm
     }
 
     // --- Code ported from Matlab
@@ -67,8 +76,11 @@ internal class HeartRateSampleProcessor @JvmOverloads constructor(val videoProce
     private val window = HEART_RATE_WINDOW_IN_SECONDS           // seconds
     private val windowLength = Math.round(fs * window).toInt()
 
-    // number of frames in the window
-    /// channel, 60fps, 10sec window
+
+    /**
+     * number of frames in the window
+     * channel, 60fps, 10sec window
+     */
     internal fun findHeartRateValues(channel: List<Double>): List<CalculatedHeartRate> {
         val nframes = Math.floor(channel.size.toDouble() / (windowLength.toDouble() / 2.0)).toInt() - 1
         if (nframes < 1) {
